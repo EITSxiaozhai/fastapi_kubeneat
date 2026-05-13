@@ -1,4 +1,8 @@
 .kubeneat-shell {
+  display: block;
+}
+
+.kubeneat-shell--with-status {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
   gap: 24px;
@@ -13,8 +17,13 @@
   border-radius: 8px;
 }
 
+.kubeneat-form-stack,
+.kubeneat-status-content {
+  width: 100%;
+}
+
 .kubeneat-dropzone {
-  margin-top: 24px;
+  margin-top: 4px;
 }
 
 .kubeneat-upload-icon {
@@ -22,12 +31,8 @@
   font-size: 44px;
 }
 
-.kubeneat-status-content {
-  width: 100%;
-}
-
 @media (max-width: 900px) {
-  .kubeneat-shell {
+  .kubeneat-shell--with-status {
     grid-template-columns: 1fr;
   }
 }

@@ -31,12 +31,6 @@ export default [
     ],
   },
   {
-    path: '/welcome',
-    name: 'welcome',
-    icon: 'home',
-    component: './Welcome',
-  },
-  {
     path: '/kubeneat',
     name: 'kubeneat',
     icon: 'fileDone',
