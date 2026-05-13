@@ -37,23 +37,6 @@ export default [
     component: './kubeneat',
   },
   {
-    path: '/admin',
-    name: 'admin',
-    icon: 'crown',
-    access: 'canAdmin',
-    routes: [
-      {
-        path: '/admin',
-        redirect: '/admin/sub-page',
-      },
-      {
-        path: '/admin/sub-page',
-        name: 'sub-page',
-        component: './Admin',
-      },
-    ],
-  },
-  {
     path: '/dashboard',
     name: 'dashboard',
     icon: 'dashboard',
@@ -61,24 +44,6 @@ export default [
       {
         path: '/dashboard',
         redirect: '/dashboard/analysis',
-      },
-      {
-        name: 'analysis',
-        icon: 'barChart',
-        path: '/dashboard/analysis',
-        component: './dashboard/analysis',
-      },
-      {
-        name: 'monitor',
-        icon: 'monitor',
-        path: '/dashboard/monitor',
-        component: './dashboard/monitor',
-      },
-      {
-        name: 'workplace',
-        icon: 'desktop',
-        path: '/dashboard/workplace',
-        component: './dashboard/workplace',
       },
       {
         name: 'tasks',
