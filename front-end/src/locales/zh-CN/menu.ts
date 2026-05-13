@@ -11,6 +11,7 @@ export default {
   'menu.dashboard.analysis': '分析页',
   'menu.dashboard.monitor': '监控页',
   'menu.dashboard.workplace': '工作台',
+  'menu.dashboard.tasks': '任务中心',
   'menu.account': '个人页',
   'menu.account.center': '个人中心',
   'menu.account.settings': '个人设置',
