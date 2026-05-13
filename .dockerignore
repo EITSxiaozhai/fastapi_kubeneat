@@ -1,0 +1,11 @@
+.git
+.idea
+.venv
+__pycache__/
+*.py[cod]
+.pytest_cache/
+runtime_data/
+front-end/node_modules/
+front-end/dist/
+front-end/.umi/
+front-end/.umi-production/

@@ -1,0 +1,35 @@
+services:
+  redis:
+    image: public.ecr.aws/bitnami/redis:6.2.13-debian-11-r61
+    environment:
+      REDIS_PASSWORD: KZNkYLt3U3Zmtm7q
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/bitnami/redis/data
+
+  api:
+    build: .
+    env_file:
+      - .env.container.example
+    depends_on:
+      - redis
+    ports:
+      - "8002:8002"
+    volumes:
+      - kubeneat_runtime:/data/runtime
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8002"]
+
+  celery:
+    build: .
+    env_file:
+      - .env.container.example
+    depends_on:
+      - redis
+    volumes:
+      - kubeneat_runtime:/data/runtime
+    command: ["celery", "-A", "app.core.celery_app.celery_app", "worker", "--loglevel=info", "--pool=solo"]
+
+volumes:
+  redis_data:
+  kubeneat_runtime:
