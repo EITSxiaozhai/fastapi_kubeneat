@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse
 
 from app.core.celery_app import celery_app
 from app.core.config import get_settings
+from app.services.task_registry import get_task_detail, list_task_details, record_task_submission
 from app.workers.tasks import neat_yaml_file
 
 
@@ -73,36 +74,28 @@ async def upload_yaml(
     if file is not None:
         source_name = file.filename or "manifest.yaml"
         upload_path, original_filename = _persist_yaml_submission(await file.read(), source_name)
+        submission_type = "file"
     elif content is not None:
         source_name = (filename or "manual-input.yaml").strip() or "manual-input.yaml"
         upload_path, original_filename = _persist_yaml_submission(content.encode("utf-8"), source_name)
+        submission_type = "manual"
     else:
         raise HTTPException(status_code=400, detail="Provide either a YAML file or YAML text content.")
 
     task = neat_yaml_file.delay(str(upload_path), original_filename)
+    record_task_submission(task.id, original_filename, submission_type)
     return {"task_id": task.id, "status": "PENDING"}
+
+
+@router.get("/neat/tasks")
+def list_tasks() -> dict[str, object]:
+    tasks = list_task_details()
+    return {"total": len(tasks), "items": tasks}
 
 
 @router.get("/neat/tasks/{task_id}")
 def get_task(task_id: str) -> dict[str, object]:
-    task_result = AsyncResult(task_id, app=celery_app)
-    response: dict[str, object] = {"task_id": task_id, "status": task_result.state}
-
-    if task_result.state == "PROGRESS":
-        response["progress"] = task_result.info
-    elif task_result.successful():
-        result = task_result.result
-        response["result"] = {
-            "original_filename": result["original_filename"],
-            "resource_count": result["resource_count"],
-            "result_filename": result["result_filename"],
-            "download_url": f"/api/neat/tasks/{task_id}/download",
-            "message": result["message"],
-        }
-    elif task_result.failed():
-        response["error"] = str(task_result.result)
-
-    return response
+    return get_task_detail(task_id)
 
 
 @router.get("/neat/tasks/{task_id}/download")

@@ -34,6 +34,7 @@ class Settings(BaseModel):
     runtime_dir: Path = Path(os.getenv("KUBENEAT_RUNTIME_DIR", "runtime_data"))
     upload_dir_name: str = "uploads"
     result_dir_name: str = "results"
+    task_registry_name: str = "task_registry.jsonl"
     max_upload_bytes: int = int(os.getenv("KUBENEAT_MAX_UPLOAD_BYTES", str(5 * 1024 * 1024)))
 
     @property
@@ -44,10 +45,15 @@ class Settings(BaseModel):
     def result_dir(self) -> Path:
         return self.runtime_dir / self.result_dir_name
 
+    @property
+    def task_registry_path(self) -> Path:
+        return self.runtime_dir / self.task_registry_name
+
 
 @lru_cache
 def get_settings() -> Settings:
     settings = Settings()
     settings.upload_dir.mkdir(parents=True, exist_ok=True)
     settings.result_dir.mkdir(parents=True, exist_ok=True)
+    settings.task_registry_path.touch(exist_ok=True)
     return settings
