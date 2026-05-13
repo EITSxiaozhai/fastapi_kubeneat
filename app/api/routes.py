@@ -4,7 +4,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from celery.result import AsyncResult
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
 from app.core.celery_app import celery_app
@@ -13,6 +13,23 @@ from app.workers.tasks import neat_yaml_file
 
 
 router = APIRouter(prefix="/api")
+
+
+def _persist_yaml_submission(content: bytes, original_filename: str) -> tuple[Path, str]:
+    settings = get_settings()
+    suffix = Path(original_filename).suffix.lower()
+    if suffix not in {".yaml", ".yml"}:
+        raise HTTPException(status_code=400, detail="Only .yaml or .yml files are supported.")
+
+    if not content:
+        raise HTTPException(status_code=400, detail="YAML content cannot be empty.")
+    if len(content) > settings.max_upload_bytes:
+        raise HTTPException(status_code=413, detail="YAML content exceeds the upload size limit.")
+
+    upload_name = f"{uuid4().hex}{suffix}"
+    upload_path = settings.upload_dir / upload_name
+    upload_path.write_bytes(content)
+    return upload_path, original_filename
 
 
 @router.get("/health")
@@ -48,23 +65,21 @@ def logout() -> dict[str, object]:
 
 
 @router.post("/neat/upload")
-async def upload_yaml(file: UploadFile = File(...)) -> dict[str, str]:
-    settings = get_settings()
-    suffix = Path(file.filename or "manifest.yaml").suffix.lower()
-    if suffix not in {".yaml", ".yml"}:
-        raise HTTPException(status_code=400, detail="只支持 .yaml 或 .yml 文件")
+async def upload_yaml(
+    file: UploadFile | None = File(default=None),
+    content: str | None = Form(default=None),
+    filename: str | None = Form(default=None),
+) -> dict[str, str]:
+    if file is not None:
+        source_name = file.filename or "manifest.yaml"
+        upload_path, original_filename = _persist_yaml_submission(await file.read(), source_name)
+    elif content is not None:
+        source_name = (filename or "manual-input.yaml").strip() or "manual-input.yaml"
+        upload_path, original_filename = _persist_yaml_submission(content.encode("utf-8"), source_name)
+    else:
+        raise HTTPException(status_code=400, detail="Provide either a YAML file or YAML text content.")
 
-    content = await file.read()
-    if not content:
-        raise HTTPException(status_code=400, detail="上传文件为空")
-    if len(content) > settings.max_upload_bytes:
-        raise HTTPException(status_code=413, detail="上传文件超过大小限制")
-
-    upload_name = f"{uuid4().hex}{suffix}"
-    upload_path = settings.upload_dir / upload_name
-    upload_path.write_bytes(content)
-
-    task = neat_yaml_file.delay(str(upload_path), file.filename or upload_name)
+    task = neat_yaml_file.delay(str(upload_path), original_filename)
     return {"task_id": task.id, "status": "PENDING"}
 
 
@@ -94,11 +109,11 @@ def get_task(task_id: str) -> dict[str, object]:
 def download_result(task_id: str) -> FileResponse:
     task_result = AsyncResult(task_id, app=celery_app)
     if not task_result.successful():
-        raise HTTPException(status_code=409, detail="任务尚未完成")
+        raise HTTPException(status_code=409, detail="Task is not finished yet.")
 
     result_path = Path(task_result.result["result_path"])
     if not result_path.exists():
-        raise HTTPException(status_code=404, detail="结果文件不存在")
+        raise HTTPException(status_code=404, detail="Result file does not exist.")
 
     return FileResponse(
         path=result_path,
