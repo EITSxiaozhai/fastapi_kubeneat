@@ -3,6 +3,9 @@ import { request } from '@umijs/max';
 export type NeatTaskStatus = {
   task_id: string;
   status: 'PENDING' | 'STARTED' | 'PROGRESS' | 'SUCCESS' | 'FAILURE' | string;
+  created_at?: string;
+  original_filename?: string;
+  submission_type?: 'file' | 'manual' | string;
   progress?: {
     current: number;
     total: number;
@@ -41,6 +44,12 @@ export async function submitNeatYaml(content: string, filename = 'manual-input.y
 
 export async function getNeatTask(taskId: string) {
   return request<NeatTaskStatus>(`/api/neat/tasks/${taskId}`, {
+    method: 'GET',
+  });
+}
+
+export async function listNeatTasks() {
+  return request<{ total: number; items: NeatTaskStatus[] }>('/api/neat/tasks', {
     method: 'GET',
   });
 }
