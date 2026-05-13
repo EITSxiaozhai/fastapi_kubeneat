@@ -80,6 +80,12 @@ export default [
         path: '/dashboard/workplace',
         component: './dashboard/workplace',
       },
+      {
+        name: 'tasks',
+        icon: 'profile',
+        path: '/dashboard/tasks',
+        component: './dashboard/tasks',
+      },
     ],
   },
   {
