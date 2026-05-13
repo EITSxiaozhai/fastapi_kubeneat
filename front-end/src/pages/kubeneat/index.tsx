@@ -18,6 +18,7 @@ import {
   theme,
 } from 'antd';
 import type { UploadFile, UploadProps } from 'antd';
+import type { RcFile } from 'antd/es/upload';
 import { useEffect, useRef, useState } from 'react';
 import { getNeatTask, submitNeatYaml, uploadNeatYaml, type NeatTaskStatus } from '@/services/kubeneat';
 import './style.less';
@@ -36,6 +37,7 @@ const KubeneatPage = () => {
   const [task, setTask] = useState<NeatTaskStatus>();
   const [uploading, setUploading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<UploadFile | undefined>();
+  const [selectedRawFile, setSelectedRawFile] = useState<RcFile | undefined>();
   const [manualFilename, setManualFilename] = useState('manual-input.yaml');
   const [manualYaml, setManualYaml] = useState('');
   const timerRef = useRef<number>();
@@ -75,7 +77,7 @@ const KubeneatPage = () => {
   };
 
   const handleSubmitFile = async () => {
-    const file = selectedFile?.originFileObj;
+    const file = selectedRawFile;
     if (!file) {
       message.warning('Select a YAML file first.');
       return;
@@ -129,11 +131,20 @@ const KubeneatPage = () => {
     accept: '.yaml,.yml',
     maxCount: 1,
     beforeUpload: (file) => {
-      setSelectedFile(file as UploadFile);
+      setSelectedRawFile(file);
+      setSelectedFile({
+        uid: file.uid,
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        status: 'done',
+        originFileObj: file,
+      });
       return false;
     },
     onRemove: () => {
       setSelectedFile(undefined);
+      setSelectedRawFile(undefined);
     },
     fileList: selectedFile ? [selectedFile] : [],
     showUploadList: true,
