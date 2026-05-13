@@ -8,6 +8,10 @@ export default [
         path: '/user/login',
         component: './user/login',
       },
+      {
+        path: '/user/*',
+        redirect: '/user/login',
+      },
     ],
   },
   {
@@ -15,6 +19,12 @@ export default [
     name: '欢迎',
     icon: 'smile',
     component: './Welcome',
+  },
+  {
+    path: '/kubeneat',
+    name: 'KubeNeat',
+    icon: 'fileDone',
+    component: './kubeneat',
   },
   {
     path: '/admin',
@@ -34,18 +44,12 @@ export default [
     ],
   },
   {
-    name: '查询表格',
-    icon: 'table',
-    path: '/list',
-    component: './table-list',
-  },
-  {
     path: '/',
-    redirect: '/welcome',
+    redirect: '/kubeneat',
   },
   {
-    component: './exception/404',
+    path: '/*',
     layout: false,
-    path: './*',
+    redirect: '/kubeneat',
   },
 ];
