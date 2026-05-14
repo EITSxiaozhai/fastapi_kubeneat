@@ -7,7 +7,7 @@ import {
 import { DiffEditor, Editor } from '@monaco-editor/react';
 import type { Monaco } from '@monaco-editor/react';
 import { PageContainer } from '@ant-design/pro-components';
-import { Button, Input, Progress, Segmented, Space, Typography, Upload, message, notification } from 'antd';
+import { Button, Input, Modal, Progress, Segmented, Space, Typography, Upload, message, notification } from 'antd';
 import type { UploadFile, UploadProps } from 'antd';
 import type { RcFile } from 'antd/es/upload';
 import { configureMonacoYaml } from 'monaco-yaml';
@@ -153,6 +153,39 @@ const KubeneatPage = () => {
     return /\.(yaml|yml)$/i.test(trimmed) ? trimmed : `${trimmed}.yaml`;
   };
 
+  const clearWorkspaceState = () => {
+    stopPolling();
+    setTask(undefined);
+    notifiedTaskKeyRef.current = undefined;
+    setSelectedFile(undefined);
+    setSelectedRawFile(undefined);
+    setSelectedYaml('');
+    setManualFilename('manual-input.yaml');
+    setManualYaml('');
+  };
+
+  const handleModeChange = (nextMode: SubmitMode) => {
+    if (nextMode === mode) {
+      return;
+    }
+
+    if (!hasResult) {
+      setMode(nextMode);
+      return;
+    }
+
+    Modal.confirm({
+      title: '切换会造成当前页面数据丢失',
+      content: '当前 YAML 精简结果和对比内容会被清空，确认要切换吗？',
+      okText: '确认切换',
+      cancelText: '取消',
+      onOk: () => {
+        clearWorkspaceState();
+        setMode(nextMode);
+      },
+    });
+  };
+
   const handleSubmitFile = async () => {
     const file = selectedRawFile;
     if (!file) {
@@ -293,7 +326,7 @@ const KubeneatPage = () => {
             <Segmented<SubmitMode>
               block
               value={mode}
-              onChange={(value) => setMode(value)}
+              onChange={handleModeChange}
               options={[
                 { label: 'File upload', value: 'upload' },
                 { label: 'Manual input', value: 'manual' },
