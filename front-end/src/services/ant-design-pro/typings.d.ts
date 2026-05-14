@@ -66,6 +66,7 @@ declare namespace API {
     password?: string;
     autoLogin?: boolean;
     type?: string;
+    turnstile_token?: string;
   };
 
   type ErrorResponse = {
