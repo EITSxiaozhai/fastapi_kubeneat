@@ -1,4 +1,15 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: kubeneat
+      POSTGRES_USER: kubeneat
+      POSTGRES_PASSWORD: kubeneat
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
   redis:
     image: public.ecr.aws/bitnami/redis:6.2.13-debian-11-r61
     environment:
@@ -13,6 +24,7 @@ services:
     env_file:
       - .env.container.example
     depends_on:
+      - postgres
       - redis
     ports:
       - "8002:8002"
@@ -25,11 +37,13 @@ services:
     env_file:
       - .env.container.example
     depends_on:
+      - postgres
       - redis
     volumes:
       - kubeneat_runtime:/data/runtime
     command: ["celery", "-A", "app.core.celery_app.celery_app", "worker", "--loglevel=info", "--pool=solo"]
 
 volumes:
+  postgres_data:
   redis_data:
   kubeneat_runtime:
