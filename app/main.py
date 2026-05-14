@@ -10,7 +10,7 @@ app = FastAPI(title="fastapi-kubeneat")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8000", "http://127.0.0.1:8000","https://tools.exploit-db.xyz"],
+    allow_origins=["http://localhost:8000", "http://127.0.0.1:8000","https://tools.exploit-db.xyz","https://kubeneat.exploit-db.xyz"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
