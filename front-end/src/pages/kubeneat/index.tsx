@@ -313,13 +313,13 @@ const KubeneatPage = () => {
   return (
     <>
       {notificationContextHolder}
-      <PageContainer title="kubectl-neat YAML cleanup">
+      <PageContainer title="kubectl-neat YAML 清理">
         <section className="kubeneat-workspace">
           <Space direction="vertical" size={20} className="kubeneat-form-stack">
             <div>
-              <Title level={3}>Submit Kubernetes YAML</Title>
+              <Title level={3}>提交你的 Kubernetes YAML,请删除敏感信息如域名。AK SK明文</Title>
               <Text type="secondary">
-                Upload a YAML file or paste raw Kubernetes YAML. The cleanup result is compared in the same workspace after the task completes.
+                上传或者粘贴符合k8s的部署yaml，将会自动调用kube-neat 进行清理。支持多个 以 --- 分割的 部署文件。
               </Text>
             </div>
 
