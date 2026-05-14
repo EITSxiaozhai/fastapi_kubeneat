@@ -1,49 +1,84 @@
 import {
   CloudUploadOutlined,
+  CopyOutlined,
   DownloadOutlined,
-  FileDoneOutlined,
   FileTextOutlined,
-  LoadingOutlined,
 } from '@ant-design/icons';
+import { DiffEditor, Editor } from '@monaco-editor/react';
+import type { Monaco } from '@monaco-editor/react';
 import { PageContainer } from '@ant-design/pro-components';
-import {
-  Button,
-  Input,
-  Progress,
-  Segmented,
-  Space,
-  Typography,
-  Upload,
-  message,
-  theme,
-} from 'antd';
+import { Button, Input, Progress, Segmented, Space, Typography, Upload, message, notification } from 'antd';
 import type { UploadFile, UploadProps } from 'antd';
 import type { RcFile } from 'antd/es/upload';
+import { configureMonacoYaml } from 'monaco-yaml';
 import { useEffect, useRef, useState } from 'react';
 import { getNeatTask, submitNeatYaml, uploadNeatYaml, type NeatTaskStatus } from '@/services/kubeneat';
 import './style.less';
 
 const { Dragger } = Upload;
 const { Text, Title } = Typography;
-const { TextArea } = Input;
 
 const isDone = (status?: string) => status === 'SUCCESS' || status === 'FAILURE';
 
 type SubmitMode = 'upload' | 'manual';
 
+const editorOptions = {
+  automaticLayout: true,
+  fontSize: 13,
+  lineNumbersMinChars: 3,
+  minimap: { enabled: false },
+  padding: { top: 16, bottom: 16 },
+  scrollBeyondLastLine: false,
+  tabSize: 2,
+  wordWrap: 'on' as const,
+};
+
+const diffEditorOptions = {
+  ...editorOptions,
+  enableSplitViewResizing: true,
+  originalEditable: false,
+  readOnly: true,
+  renderSideBySide: true,
+};
+
+let yamlConfigured = false;
+
+const setupMonacoYaml = (monaco: Monaco) => {
+  if (yamlConfigured) {
+    return;
+  }
+
+  configureMonacoYaml(monaco, {
+    completion: true,
+    enableSchemaRequest: false,
+    format: {},
+    hover: true,
+    schemas: [],
+    validate: true,
+  });
+
+  yamlConfigured = true;
+};
+
 const KubeneatPage = () => {
-  const { token } = theme.useToken();
+  const [notificationApi, notificationContextHolder] = notification.useNotification();
   const [mode, setMode] = useState<SubmitMode>('upload');
-  const [task, setTask] = useState<NeatTaskStatus>();
+  const [task, setTask] = useState<NeatTaskStatus | undefined>(undefined);
   const [uploading, setUploading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<UploadFile | undefined>();
   const [selectedRawFile, setSelectedRawFile] = useState<RcFile | undefined>();
+  const [selectedYaml, setSelectedYaml] = useState('');
   const [manualFilename, setManualFilename] = useState('manual-input.yaml');
   const [manualYaml, setManualYaml] = useState('');
-  const timerRef = useRef<number>();
+  const timerRef = useRef<number | undefined>(undefined);
+  const notifiedTaskKeyRef = useRef<string | undefined>(undefined);
 
-  const hasStatusPanel = !!task;
+  const hasResult = !!task?.result?.result_content;
   const busy = uploading || (!!task && !isDone(task.status));
+  const originalYaml = mode === 'manual'
+    ? manualYaml
+    : selectedYaml || task?.result?.original_content || '';
+  const resultYaml = task?.result?.result_content || '';
 
   const stopPolling = () => {
     if (timerRef.current) {
@@ -65,6 +100,48 @@ const KubeneatPage = () => {
 
   useEffect(() => stopPolling, []);
 
+  useEffect(() => {
+    if (!task || !isDone(task.status)) {
+      return;
+    }
+
+    const notificationKey = `${task.task_id}:${task.status}`;
+    if (notifiedTaskKeyRef.current === notificationKey) {
+      return;
+    }
+    notifiedTaskKeyRef.current = notificationKey;
+
+    if (task.status === 'SUCCESS' && task.result) {
+      notificationApi.success({
+        key: notificationKey,
+        message: 'YAML cleanup completed',
+        duration: 6,
+        description: (
+          <Space direction="vertical" size={4}>
+            <Text>{`Original file: ${task.result.original_filename}`}</Text>
+            <Text>{`Resource count: ${task.result.resource_count}`}</Text>
+            <Text>{`Result file: ${task.result.result_filename}`}</Text>
+          </Space>
+        ),
+        btn: (
+          <Button size="small" type="primary" icon={<DownloadOutlined />} href={task.result.download_url}>
+            Download
+          </Button>
+        ),
+      });
+      return;
+    }
+
+    if (task.status === 'FAILURE') {
+      notificationApi.error({
+        key: notificationKey,
+        message: 'YAML cleanup failed',
+        duration: 6,
+        description: task.error || 'The background task finished with an error.',
+      });
+    }
+  }, [notificationApi, task]);
+
   const startTaskTracking = async (taskId: string) => {
     const firstState = await getNeatTask(taskId);
     setTask(firstState);
@@ -85,6 +162,7 @@ const KubeneatPage = () => {
 
     setUploading(true);
     setTask(undefined);
+    notifiedTaskKeyRef.current = undefined;
 
     try {
       const created = await uploadNeatYaml(file);
@@ -110,6 +188,7 @@ const KubeneatPage = () => {
 
     setUploading(true);
     setTask(undefined);
+    notifiedTaskKeyRef.current = undefined;
 
     try {
       const created = await submitNeatYaml(manualYaml, normalizeFilename(manualFilename));
@@ -127,11 +206,22 @@ const KubeneatPage = () => {
     }
   };
 
+  const handleCopyResult = async () => {
+    const resultContent = task?.result?.result_content;
+    if (!resultContent) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(resultContent);
+    message.success('Result YAML copied.');
+  };
+
   const uploadProps: UploadProps = {
     accept: '.yaml,.yml',
     maxCount: 1,
     beforeUpload: (file) => {
       setSelectedRawFile(file);
+      void file.text().then((content) => setSelectedYaml(content));
       setSelectedFile({
         uid: file.uid,
         name: file.name,
@@ -145,6 +235,7 @@ const KubeneatPage = () => {
     onRemove: () => {
       setSelectedFile(undefined);
       setSelectedRawFile(undefined);
+      setSelectedYaml('');
     },
     fileList: selectedFile ? [selectedFile] : [],
     showUploadList: true,
@@ -159,15 +250,43 @@ const KubeneatPage = () => {
         ? 8
         : 0;
 
+  const renderResultCompare = (inputTitle: string) => (
+    <div className="kubeneat-compare-pane">
+      <div className="kubeneat-compare-pane__header">
+        <Text strong>{inputTitle} / Cleaned YAML diff</Text>
+        <Space>
+          <Button type="primary" icon={<DownloadOutlined />} href={task?.result?.download_url}>
+            Download file
+          </Button>
+          <Button icon={<CopyOutlined />} onClick={handleCopyResult}>
+            Copy result
+          </Button>
+        </Space>
+      </div>
+      <div className="monaco-shell">
+        <DiffEditor
+          beforeMount={setupMonacoYaml}
+          height="560px"
+          original={originalYaml}
+          modified={resultYaml}
+          language="yaml"
+          theme="vs-dark"
+          options={diffEditorOptions}
+        />
+      </div>
+    </div>
+  );
+
   return (
-    <PageContainer title="kubectl-neat YAML cleanup">
-      <div className={`kubeneat-shell${hasStatusPanel ? ' kubeneat-shell--with-status' : ''}`}>
-        <section className="kubeneat-uploader">
+    <>
+      {notificationContextHolder}
+      <PageContainer title="kubectl-neat YAML cleanup">
+        <section className="kubeneat-workspace">
           <Space direction="vertical" size={20} className="kubeneat-form-stack">
             <div>
               <Title level={3}>Submit Kubernetes YAML</Title>
               <Text type="secondary">
-                Upload a YAML file or paste raw Kubernetes YAML. The task card stays hidden until a submission is sent.
+                Upload a YAML file or paste raw Kubernetes YAML. The cleanup result is compared in the same workspace after the task completes.
               </Text>
             </div>
 
@@ -184,7 +303,7 @@ const KubeneatPage = () => {
             {mode === 'upload' ? (
               <Space direction="vertical" size={16} className="kubeneat-form-stack">
                 <Dragger {...uploadProps} className="kubeneat-dropzone">
-                  <CloudUploadOutlined className="kubeneat-upload-icon" style={{ color: token.colorPrimary }} />
+                  <CloudUploadOutlined className="kubeneat-upload-icon" />
                   <p className="ant-upload-text">Click or drag a YAML file here</p>
                   <p className="ant-upload-hint">Selecting a file does not submit it. Use the button below to start.</p>
                 </Dragger>
@@ -198,6 +317,10 @@ const KubeneatPage = () => {
                 >
                   Submit file
                 </Button>
+
+                {hasResult && (
+                  <div className="kubeneat-compare-grid">{renderResultCompare('Original YAML')}</div>
+                )}
               </Space>
             ) : (
               <Space direction="vertical" size={16} className="kubeneat-form-stack">
@@ -208,13 +331,30 @@ const KubeneatPage = () => {
                   prefix={<FileTextOutlined />}
                   disabled={busy}
                 />
-                <TextArea
-                  value={manualYaml}
-                  onChange={(event) => setManualYaml(event.target.value)}
-                  placeholder="Paste Kubernetes YAML here"
-                  autoSize={{ minRows: 14, maxRows: 22 }}
-                  disabled={busy}
-                />
+                <div className="kubeneat-compare-grid">
+                  {hasResult ? renderResultCompare('Input YAML') : (
+                    <div className="kubeneat-compare-pane">
+                      <div className="kubeneat-compare-pane__header">
+                        <Text strong>Input YAML</Text>
+                      </div>
+                      <div className="monaco-shell monaco-shell--input">
+                        <Editor
+                          beforeMount={setupMonacoYaml}
+                          height="420px"
+                          defaultLanguage="yaml"
+                          language="yaml"
+                          theme="vs-dark"
+                          value={manualYaml}
+                          options={{
+                            ...editorOptions,
+                            readOnly: busy,
+                          }}
+                          onChange={(value) => setManualYaml(value ?? '')}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
                 <Button
                   type="primary"
                   size="large"
@@ -226,44 +366,25 @@ const KubeneatPage = () => {
                 </Button>
               </Space>
             )}
+
+            {!!task && (
+              <div className="kubeneat-inline-status">
+                <Space direction="vertical" size={10} className="kubeneat-form-stack">
+                  <Text strong>{`Task status: ${task.status}`}</Text>
+                  <Progress
+                    percent={progressPercent}
+                    status={task.status === 'FAILURE' ? 'exception' : task.status === 'SUCCESS' ? 'success' : 'active'}
+                  />
+                  {task.progress && <Text>{task.progress.message}</Text>}
+                  {task.error && <Text type="danger">{task.error}</Text>}
+                </Space>
+              </div>
+            )}
+
           </Space>
         </section>
-
-        {hasStatusPanel && (
-          <section className="kubeneat-status-panel">
-            <Space direction="vertical" size={16} className="kubeneat-status-content">
-              <Space>
-                {task?.status === 'SUCCESS' ? (
-                  <FileDoneOutlined style={{ color: token.colorSuccess }} />
-                ) : (
-                  <LoadingOutlined spin={!!task && !isDone(task.status)} />
-                )}
-                <Text strong>{`Task status: ${task.status}`}</Text>
-              </Space>
-
-              <Progress
-                percent={progressPercent}
-                status={task?.status === 'FAILURE' ? 'exception' : task?.status === 'SUCCESS' ? 'success' : 'active'}
-              />
-
-              {task?.progress && <Text>{task.progress.message}</Text>}
-              {task?.error && <Text type="danger">{task.error}</Text>}
-
-              {task?.result && (
-                <Space direction="vertical">
-                  <Text>{`Original file: ${task.result.original_filename}`}</Text>
-                  <Text>{`Resource count: ${task.result.resource_count}`}</Text>
-                  <Text>{`Result file: ${task.result.result_filename}`}</Text>
-                  <Button type="primary" icon={<DownloadOutlined />} href={task.result.download_url}>
-                    Download result
-                  </Button>
-                </Space>
-              )}
-            </Space>
-          </section>
-        )}
-      </div>
-    </PageContainer>
+      </PageContainer>
+    </>
   );
 };
 

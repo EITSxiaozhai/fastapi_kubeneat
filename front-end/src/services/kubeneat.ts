@@ -13,8 +13,10 @@ export type NeatTaskStatus = {
   };
   result?: {
     original_filename: string;
+    original_content: string;
     resource_count: number;
     result_filename: string;
+    result_content: string;
     download_url: string;
     message: string;
   };

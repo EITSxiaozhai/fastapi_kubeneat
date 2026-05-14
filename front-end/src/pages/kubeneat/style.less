@@ -1,15 +1,4 @@
-.kubeneat-shell {
-  display: block;
-}
-
-.kubeneat-shell--with-status {
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
-  gap: 24px;
-}
-
-.kubeneat-uploader,
-.kubeneat-status-panel {
+.kubeneat-workspace {
   min-height: 360px;
   padding: 24px;
   background: #fff;
@@ -17,8 +6,7 @@
   border-radius: 8px;
 }
 
-.kubeneat-form-stack,
-.kubeneat-status-content {
+.kubeneat-form-stack {
   width: 100%;
 }
 
@@ -29,10 +17,47 @@
 .kubeneat-upload-icon {
   margin-bottom: 12px;
   font-size: 44px;
+  color: #1677ff;
+}
+
+.kubeneat-inline-status {
+  padding: 16px;
+  border: 1px solid rgba(5, 5, 5, 0.08);
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.monaco-shell {
+  overflow: hidden;
+  border: 1px solid rgba(5, 5, 5, 0.12);
+  border-radius: 8px;
+}
+
+.kubeneat-compare-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+.kubeneat-compare-grid--paired {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.kubeneat-compare-pane {
+  min-width: 0;
+}
+
+.kubeneat-compare-pane__header {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
 }
 
 @media (max-width: 900px) {
-  .kubeneat-shell--with-status {
+  .kubeneat-compare-grid--paired {
     grid-template-columns: 1fr;
   }
 }
