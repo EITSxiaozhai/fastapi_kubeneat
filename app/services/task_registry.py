@@ -52,7 +52,7 @@ def _build_task_response(record: TaskRecord) -> dict[str, Any]:
     return response
 
 
-def get_task_detail(db: Session, task_id: str, user_id: str) -> dict[str, Any]:
+def get_task_detail(db: Session, task_id: str, user_id: str | None) -> dict[str, Any]:
     record = db.scalar(select(TaskRecord).where(TaskRecord.task_id == task_id, TaskRecord.user_id == user_id))
     if not record:
         return {

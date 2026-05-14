@@ -14,3 +14,10 @@ def get_current_user(
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required.")
     return user
+
+
+def get_optional_current_user(
+    db: Session = Depends(get_db),
+    session_token: str | None = Cookie(default=None),
+) -> User | None:
+    return get_user_by_session_token(db, session_token)

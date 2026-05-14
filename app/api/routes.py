@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from app.core.celery_app import celery_app
 from app.core.config import get_settings
 from app.database.db import get_db
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, get_optional_current_user
 from app.models.models import TaskRecord, User
 from app.schemas.schemas import CurrentUserResponse, LoginRequest, LoginResponse, TaskCreate
 from app.services.security import create_session, delete_session, verify_password, verify_turnstile_token
@@ -104,7 +104,7 @@ async def upload_yaml(
     content: str | None = Form(default=None),
     filename: str | None = Form(default=None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User | None = Depends(get_optional_current_user),
 ) -> dict[str, str]:
     if file is not None:
         source_name = file.filename or "manifest.yaml"
@@ -124,7 +124,7 @@ async def upload_yaml(
             task_id=task.id,
             original_filename=original_filename,
             submission_type=submission_type,
-            user_id=current_user.id,
+            user_id=current_user.id if current_user else None,
         ),
     )
     return {"task_id": task.id, "status": "PENDING"}
@@ -140,18 +140,19 @@ def list_tasks(db: Session = Depends(get_db), current_user: User = Depends(get_c
 def get_task(
     task_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User | None = Depends(get_optional_current_user),
 ) -> dict[str, object]:
-    return get_task_detail(db, task_id, current_user.id)
+    return get_task_detail(db, task_id, current_user.id if current_user else None)
 
 
 @router.get("/neat/tasks/{task_id}/download")
 def download_result(
     task_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User | None = Depends(get_optional_current_user),
 ) -> FileResponse:
-    record = db.scalar(select(TaskRecord).where(TaskRecord.task_id == task_id, TaskRecord.user_id == current_user.id))
+    user_id = current_user.id if current_user else None
+    record = db.scalar(select(TaskRecord).where(TaskRecord.task_id == task_id, TaskRecord.user_id == user_id))
     if not record:
         raise HTTPException(status_code=404, detail="Task record does not exist.")
 
