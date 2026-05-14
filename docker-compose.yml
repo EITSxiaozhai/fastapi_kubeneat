@@ -41,7 +41,7 @@ services:
       - redis
     volumes:
       - kubeneat_runtime:/data/runtime
-    command: ["celery", "-A", "app.core.celery_app.celery_app", "worker", "--loglevel=info", "--pool=solo"]
+    command: ["celery", "-A", "app.core.celery_app.celery_app", "worker", "--loglevel=info", "--pool=solo"] #win系统需要加 "--pool=solo" 参数要不然执行有问题
 
 volumes:
   postgres_data:
