@@ -11,10 +11,10 @@ from sqlalchemy.orm import Session
 
 from app.core.celery_app import celery_app
 from app.core.config import get_settings
-from app.core.db import get_db
+from app.database.db import get_db
 from app.api.deps import get_current_user
-from app.models import TaskRecord, User
-from app.schemas import CurrentUserResponse, LoginRequest, LoginResponse, TaskCreate
+from app.models.models import TaskRecord, User
+from app.schemas.schemas import CurrentUserResponse, LoginRequest, LoginResponse, TaskCreate
 from app.services.security import create_session, delete_session, verify_password, verify_turnstile_token
 from app.services.task_registry import get_task_detail, list_task_details, record_task_submission
 from app.workers.tasks import neat_yaml_file

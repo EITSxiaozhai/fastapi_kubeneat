@@ -7,8 +7,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.celery_app import celery_app
-from app.models import TaskRecord
-from app.schemas import TaskCreate
+from app.models.models import TaskRecord
+from app.schemas.schemas import TaskCreate
 
 
 def record_task_submission(db: Session, payload: TaskCreate) -> None:

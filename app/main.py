@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import router
-from app.core.db import SessionLocal, init_db
+from app.database.db import SessionLocal, init_db
 from app.services.security import ensure_initial_admin
 
 
