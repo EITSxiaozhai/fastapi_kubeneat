@@ -4,11 +4,18 @@ from pathlib import Path
 from uuid import uuid4
 
 from celery.result import AsyncResult
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Cookie, Depends, File, Form, HTTPException, Request, Response, UploadFile, status
 from fastapi.responses import FileResponse
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from app.core.celery_app import celery_app
 from app.core.config import get_settings
+from app.core.db import get_db
+from app.api.deps import get_current_user
+from app.models import TaskRecord, User
+from app.schemas import CurrentUserResponse, LoginRequest, LoginResponse, TaskCreate
+from app.services.security import create_session, delete_session, verify_password, verify_turnstile_token
 from app.services.task_registry import get_task_detail, list_task_details, record_task_submission
 from app.workers.tasks import neat_yaml_file
 
@@ -38,30 +45,56 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@router.get("/currentUser")
-def current_user() -> dict[str, object]:
-    return {
-        "success": True,
-        "data": {
-            "name": "KubeNeat User",
+@router.get("/currentUser", response_model=CurrentUserResponse)
+def current_user(current_user: User = Depends(get_current_user)) -> CurrentUserResponse:
+    return CurrentUserResponse(
+        data={
+            "name": current_user.display_name,
             "avatar": "",
-            "userid": "kubeneat",
-            "access": "admin",
-        },
-    }
+            "userid": current_user.id,
+            "email": current_user.email,
+            "access": current_user.access,
+        }
+    )
 
 
-@router.post("/login/account")
-def login_account() -> dict[str, object]:
-    return {
-        "status": "ok",
-        "type": "account",
-        "currentAuthority": "admin",
-    }
+@router.post("/login/account", response_model=LoginResponse)
+async def login_account(
+    payload: LoginRequest,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+) -> LoginResponse:
+    turnstile_valid = await verify_turnstile_token(payload.turnstile_token, request.client.host if request.client else None)
+    if not turnstile_valid:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cloudflare Turnstile verification failed.")
+
+    user = db.scalar(select(User).where(User.username == payload.username))
+    if not user or not user.is_active or not verify_password(payload.password, user.password_hash):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password.")
+
+    settings = get_settings()
+    token = create_session(db, user)
+    response.set_cookie(
+        key=settings.session_cookie_name,
+        value=token,
+        httponly=True,
+        secure=False,
+        samesite="lax",
+        max_age=settings.session_ttl_hours * 60 * 60,
+    )
+    return LoginResponse(status="ok", currentAuthority=user.access)
 
 
 @router.post("/login/outLogin")
-def logout() -> dict[str, object]:
+def logout(
+    response: Response,
+    session_token: str | None = Cookie(default=None),
+    db: Session = Depends(get_db),
+) -> dict[str, object]:
+    settings = get_settings()
+    delete_session(db, session_token)
+    response.delete_cookie(settings.session_cookie_name)
     return {"success": True}
 
 
@@ -70,6 +103,8 @@ async def upload_yaml(
     file: UploadFile | None = File(default=None),
     content: str | None = Form(default=None),
     filename: str | None = Form(default=None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> dict[str, str]:
     if file is not None:
         source_name = file.filename or "manifest.yaml"
@@ -83,23 +118,43 @@ async def upload_yaml(
         raise HTTPException(status_code=400, detail="Provide either a YAML file or YAML text content.")
 
     task = neat_yaml_file.delay(str(upload_path), original_filename)
-    record_task_submission(task.id, original_filename, submission_type)
+    record_task_submission(
+        db,
+        TaskCreate(
+            task_id=task.id,
+            original_filename=original_filename,
+            submission_type=submission_type,
+            user_id=current_user.id,
+        ),
+    )
     return {"task_id": task.id, "status": "PENDING"}
 
 
 @router.get("/neat/tasks")
-def list_tasks() -> dict[str, object]:
-    tasks = list_task_details()
+def list_tasks(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> dict[str, object]:
+    tasks = list_task_details(db, current_user.id)
     return {"total": len(tasks), "items": tasks}
 
 
 @router.get("/neat/tasks/{task_id}")
-def get_task(task_id: str) -> dict[str, object]:
-    return get_task_detail(task_id)
+def get_task(
+    task_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict[str, object]:
+    return get_task_detail(db, task_id, current_user.id)
 
 
 @router.get("/neat/tasks/{task_id}/download")
-def download_result(task_id: str) -> FileResponse:
+def download_result(
+    task_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> FileResponse:
+    record = db.scalar(select(TaskRecord).where(TaskRecord.task_id == task_id, TaskRecord.user_id == current_user.id))
+    if not record:
+        raise HTTPException(status_code=404, detail="Task record does not exist.")
+
     task_result = AsyncResult(task_id, app=celery_app)
     if not task_result.successful():
         raise HTTPException(status_code=409, detail="Task is not finished yet.")
