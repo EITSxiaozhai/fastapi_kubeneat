@@ -44,8 +44,10 @@ def _build_task_response(
         result = task_result.result
         response["result"] = {
             "original_filename": result["original_filename"],
+            "original_content": result.get("original_content", ""),
             "resource_count": result["resource_count"],
             "result_filename": result["result_filename"],
+            "result_content": result.get("result_content", ""),
             "download_url": f"/api/neat/tasks/{task_id}/download",
             "message": result["message"],
         }

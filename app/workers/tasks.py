@@ -22,7 +22,7 @@ def neat_yaml_file(self, upload_path: str, original_filename: str) -> dict[str, 
             meta={
                 "current": index,
                 "total": total,
-                "message": f"正在精简第 {index}/{total} 个资源",
+                "message": f"Cleaning resource {index}/{total}",
             },
         )
         cleaned_documents.append(run_kubectl_neat(document))
@@ -30,12 +30,15 @@ def neat_yaml_file(self, upload_path: str, original_filename: str) -> dict[str, 
     settings = get_settings()
     result_filename = f"{source_path.stem}.neat.yaml"
     result_path = settings.result_dir / result_filename
-    result_path.write_text("\n---\n".join(cleaned_documents) + "\n", encoding="utf-8")
+    result_content = "\n---\n".join(cleaned_documents) + "\n"
+    result_path.write_text(result_content, encoding="utf-8")
 
     return {
         "original_filename": original_filename,
+        "original_content": raw_yaml,
         "resource_count": total,
         "result_path": str(result_path),
         "result_filename": result_filename,
-        "message": "精简完成",
+        "result_content": result_content,
+        "message": "Cleanup completed",
     }
