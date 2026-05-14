@@ -227,6 +227,7 @@ export default defineConfig({
   define: {
     'process.env.CI': process.env.CI,
     'process.env.COMMIT_HASH': commitHash,
+    'process.env.CLOUDFLARE_TURNSTILE_SITE_KEY': process.env.CLOUDFLARE_TURNSTILE_SITE_KEY || '',
     __APP_VERSION__: require('./../package.json').version,
     __UMI_VERSION__: require('@umijs/max/package.json').version,
     __UTOO_VERSION__: require('@utoo/pack/package.json').version,
