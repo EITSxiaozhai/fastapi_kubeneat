@@ -2,6 +2,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import router
+from app.core.db import SessionLocal, init_db
+from app.services.security import ensure_initial_admin
 
 
 app = FastAPI(title="fastapi-kubeneat")
@@ -15,3 +17,10 @@ app.add_middleware(
 )
 
 app.include_router(router)
+
+
+@app.on_event("startup")
+def startup() -> None:
+    init_db()
+    with SessionLocal() as db:
+        ensure_initial_admin(db)
