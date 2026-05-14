@@ -43,6 +43,7 @@ export default defineConfig({
    * @doc https://umijs.org/docs/api/config#hash
    */
   hash: true,
+  esbuildMinifyIIFE: true,
 
   publicPath: PUBLIC_PATH,
 
@@ -212,15 +213,13 @@ export default defineConfig({
     include: ['src/pages/**/_mock.ts'],
     exclude: ['mock/requestRecord.mock.js'],
   },
-  utoopack: {
-    module: {
-      rules: {
-        '*.md': {
-          loaders: [{ loader: join(__dirname, 'md-raw-loader.cjs') }],
-          as: '*.js',
-        },
-      },
-    },
+  chainWebpack(memo) {
+    memo.module
+      .rule('md-raw')
+      .test(/\.md$/)
+      .type('javascript/auto')
+      .use('md-raw-loader')
+      .loader(join(__dirname, 'md-raw-loader.cjs'));
   },
   requestRecord: {},
   exportStatic: {},
