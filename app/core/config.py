@@ -5,6 +5,11 @@ from pathlib import Path
 from pydantic import BaseModel
 
 
+def parse_csv_env(value: str, default: list[str]) -> list[str]:
+    items = [item.strip() for item in value.split(",") if item.strip()]
+    return items or default
+
+
 def load_dotenv(path: Path = Path(".env")) -> None:
     if not path.exists():
         return
@@ -36,6 +41,18 @@ class Settings(BaseModel):
     upload_dir_name: str = "uploads"
     result_dir_name: str = "results"
     max_upload_bytes: int = int(os.getenv("KUBENEAT_MAX_UPLOAD_BYTES", str(5 * 1024 * 1024)))
+    cors_origins: list[str] = parse_csv_env(
+        os.getenv(
+            "KUBENEAT_CORS_ORIGINS",
+            "http://localhost:8000,http://127.0.0.1:8000,https://tools.exploit-db.xyz,https://kubeneat.exploit-db.xyz",
+        ),
+        [
+            "http://localhost:8000",
+            "http://127.0.0.1:8000",
+            "https://tools.exploit-db.xyz",
+            "https://kubeneat.exploit-db.xyz",
+        ],
+    )
     session_cookie_name: str = os.getenv("KUBENEAT_SESSION_COOKIE_NAME", "session_token")
     session_ttl_hours: int = int(os.getenv("KUBENEAT_SESSION_TTL_HOURS", "24"))
     initial_admin_username: str = os.getenv("KUBENEAT_INITIAL_ADMIN_USERNAME", "admin")

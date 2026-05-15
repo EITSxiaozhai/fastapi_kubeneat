@@ -2,15 +2,17 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import router
+from app.core.config import get_settings
 from app.database.db import SessionLocal, init_db
 from app.services.security import ensure_initial_admin
 
 
+settings = get_settings()
 app = FastAPI(title="fastapi-kubeneat")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8000", "http://127.0.0.1:8000","https://tools.exploit-db.xyz","https://kubeneat.exploit-db.xyz"],
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
