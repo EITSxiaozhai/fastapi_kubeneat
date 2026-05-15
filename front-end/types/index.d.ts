@@ -116,5 +116,9 @@ export namespace API {
     type: string;
     /** example: admin */
     currentAuthority: string;
+    token: string;
+    tokenType: string;
+    expiresAt: string;
+    jti: string;
   };
 }

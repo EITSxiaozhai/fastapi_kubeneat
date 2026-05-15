@@ -6,6 +6,7 @@ import { createStyles } from 'antd-style';
 import React, { startTransition, useEffect, useRef, useState } from 'react';
 import { Footer } from '@/components';
 import { login } from '@/services/ant-design-pro/api';
+import { saveAuthToken } from '@/utils/authToken';
 import Settings from '../../../../config/defaultSettings';
 
 declare global {
@@ -171,6 +172,9 @@ const Login: React.FC = () => {
     try {
       const msg = await login({ ...values, type: 'account', turnstile_token: turnstileToken });
       if (msg.status === 'ok') {
+        if (msg.token) {
+          saveAuthToken(msg.token);
+        }
         message.success(intl.formatMessage({ id: 'pages.login.success', defaultMessage: 'Login successful!' }));
         await fetchUserInfo();
         const urlParams = new URL(window.location.href).searchParams;
