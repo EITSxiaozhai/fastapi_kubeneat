@@ -53,8 +53,12 @@ class Settings(BaseModel):
             "https://kubeneat.exploit-db.xyz",
         ],
     )
-    session_cookie_name: str = os.getenv("KUBENEAT_SESSION_COOKIE_NAME", "session_token")
-    session_ttl_hours: int = int(os.getenv("KUBENEAT_SESSION_TTL_HOURS", "24"))
+    jwt_ttl_hours: int = int(os.getenv("KUBENEAT_JWT_TTL_HOURS", os.getenv("KUBENEAT_SESSION_TTL_HOURS", "24")))
+    jwt_secret_key: str = os.getenv("KUBENEAT_JWT_SECRET_KEY", "change-me-in-production")
+    jwt_algorithm: str = "HS256"
+    jwt_issuer: str = os.getenv("KUBENEAT_JWT_ISSUER", "fastapi-kubeneat")
+    jwt_redis_url: str = os.getenv("KUBENEAT_JWT_REDIS_URL", os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0"))
+    jwt_redis_key_prefix: str = os.getenv("KUBENEAT_JWT_REDIS_KEY_PREFIX", "kubeneat:jwt")
     initial_admin_username: str = os.getenv("KUBENEAT_INITIAL_ADMIN_USERNAME", "admin")
     initial_admin_password: str = os.getenv("KUBENEAT_INITIAL_ADMIN_PASSWORD", "ChangeMe123!")
     initial_admin_email: str = os.getenv("KUBENEAT_INITIAL_ADMIN_EMAIL", "")
