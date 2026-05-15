@@ -20,6 +20,7 @@ import {
   VersionDropdown,
 } from '@/components';
 import { currentUser as queryCurrentUser } from '@/services/ant-design-pro/api';
+import { clearAuthToken } from '@/utils/authToken';
 import defaultSettings from '../config/defaultSettings';
 import { errorConfig } from './requestErrorConfig';
 
@@ -44,6 +45,7 @@ export async function getInitialState(): Promise<{
       });
       return msg.data;
     } catch (_error) {
+      clearAuthToken();
       const { pathname, search, hash } = history.location;
       history.replace(
         `${loginPath}?redirect=${encodeURIComponent(pathname + search + hash)}`,
