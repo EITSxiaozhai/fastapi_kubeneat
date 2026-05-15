@@ -13,6 +13,14 @@ class LoginResponse(BaseModel):
     status: str
     type: str = "account"
     currentAuthority: str
+    token: str
+    tokenType: str = "Bearer"
+    expiresAt: datetime
+    jti: str
+
+
+class RevokeTokenRequest(BaseModel):
+    jti: str = Field(min_length=1, max_length=128)
 
 
 class CurrentUserData(BaseModel):
