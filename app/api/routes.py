@@ -4,7 +4,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from celery.result import AsyncResult
-from fastapi import APIRouter, Cookie, Depends, File, Form, HTTPException, Request, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -12,10 +12,10 @@ from sqlalchemy.orm import Session
 from app.core.celery_app import celery_app
 from app.core.config import get_settings
 from app.database.db import get_db
-from app.api.deps import get_current_user, get_optional_current_user
+from app.api.deps import get_bearer_token, get_current_user, get_optional_current_user
 from app.models.models import TaskRecord, User
-from app.schemas.schemas import CurrentUserResponse, LoginRequest, LoginResponse, TaskCreate
-from app.services.security import create_session, delete_session, verify_password, verify_turnstile_token
+from app.schemas.schemas import CurrentUserResponse, LoginRequest, LoginResponse, RevokeTokenRequest, TaskCreate
+from app.services.security import create_access_token, revoke_jwt_id, revoke_jwt_token, verify_password, verify_turnstile_token
 from app.services.task_registry import get_task_detail, list_task_details, record_task_submission
 from app.workers.tasks import neat_yaml_file
 
@@ -62,7 +62,6 @@ def current_user(current_user: User = Depends(get_current_user)) -> CurrentUserR
 async def login_account(
     payload: LoginRequest,
     request: Request,
-    response: Response,
     db: Session = Depends(get_db),
 ) -> LoginResponse:
     turnstile_valid = await verify_turnstile_token(payload.turnstile_token, request.client.host if request.client else None)
@@ -73,29 +72,26 @@ async def login_account(
     if not user or not user.is_active or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password.")
 
-    settings = get_settings()
-    token = create_session(db, user)
-    response.set_cookie(
-        key=settings.session_cookie_name,
-        value=token,
-        httponly=True,
-        secure=False,
-        samesite="lax",
-        max_age=settings.session_ttl_hours * 60 * 60,
-    )
-    return LoginResponse(status="ok", currentAuthority=user.access)
+    token, expires_at, jti = create_access_token(user)
+    return LoginResponse(status="ok", currentAuthority=user.access, token=token, expiresAt=expires_at, jti=jti)
 
 
 @router.post("/login/outLogin")
 def logout(
-    response: Response,
-    session_token: str | None = Cookie(default=None),
-    db: Session = Depends(get_db),
+    token: str | None = Depends(get_bearer_token),
 ) -> dict[str, object]:
-    settings = get_settings()
-    delete_session(db, session_token)
-    response.delete_cookie(settings.session_cookie_name)
+    revoke_jwt_token(token)
     return {"success": True}
+
+
+@router.post("/login/revoke")
+def revoke_token(
+    payload: RevokeTokenRequest,
+    current_user: User = Depends(get_current_user),
+) -> dict[str, object]:
+    if current_user.access != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required.")
+    return {"success": revoke_jwt_id(payload.jti)}
 
 
 @router.post("/neat/upload")
