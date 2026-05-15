@@ -8,6 +8,7 @@ import type { MenuProps } from 'antd';
 import { Spin } from 'antd';
 import React, { startTransition } from 'react';
 import { outLogin } from '@/services/ant-design-pro/api';
+import { clearAuthToken } from '@/utils/authToken';
 import HeaderDropdown from '../HeaderDropdown';
 
 type GlobalHeaderRightProps = {
@@ -18,7 +19,11 @@ export const AvatarDropdown: React.FC<GlobalHeaderRightProps> = ({
   children,
 }) => {
   const loginOut = async () => {
-    await outLogin();
+    try {
+      await outLogin();
+    } finally {
+      clearAuthToken();
+    }
     const { search, pathname } = window.location;
     const urlParams = new URL(window.location.href).searchParams;
     const searchParams = new URLSearchParams({
