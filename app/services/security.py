@@ -2,16 +2,21 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import json
 import secrets
-from base64 import b64encode
+from binascii import Error as Base64DecodeError
+from base64 import b64encode, urlsafe_b64decode, urlsafe_b64encode
 from datetime import datetime, timedelta, timezone
+from functools import lru_cache
+from typing import Any
 
 import httpx
+import redis
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.models.models import User, UserSession
+from app.models.models import User
 
 
 def hash_password(password: str, salt: str | None = None) -> str:
@@ -33,46 +38,123 @@ def verify_password(password: str, encoded: str) -> bool:
     return hmac.compare_digest(actual, expected)
 
 
-def hash_session_token(token: str) -> str:
-    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+def _b64url_encode(data: bytes) -> str:
+    return urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
 
 
-def create_session(db: Session, user: User) -> str:
+def _b64url_decode(data: str) -> bytes:
+    padded = data + "=" * (-len(data) % 4)
+    return urlsafe_b64decode(padded.encode("ascii"))
+
+
+def _json_b64url(data: dict[str, Any]) -> str:
+    return _b64url_encode(json.dumps(data, separators=(",", ":"), sort_keys=True).encode("utf-8"))
+
+
+@lru_cache
+def get_jwt_redis() -> redis.Redis:
     settings = get_settings()
-    token = secrets.token_urlsafe(48)
-    db.add(
-        UserSession(
-            user_id=user.id,
-            token_hash=hash_session_token(token),
-            expires_at=datetime.now(timezone.utc) + timedelta(hours=settings.session_ttl_hours),
-        )
-    )
-    db.commit()
-    return token
+    return redis.Redis.from_url(settings.jwt_redis_url, decode_responses=True)
 
 
-def get_user_by_session_token(db: Session, token: str | None) -> User | None:
+def _jwt_key(jti: str) -> str:
+    settings = get_settings()
+    return f"{settings.jwt_redis_key_prefix}:{jti}"
+
+
+def _sign_jwt(signing_input: str) -> str:
+    settings = get_settings()
+    digest = hmac.new(settings.jwt_secret_key.encode("utf-8"), signing_input.encode("ascii"), hashlib.sha256).digest()
+    return _b64url_encode(digest)
+
+
+def _decode_jwt(token: str) -> dict[str, Any] | None:
+    settings = get_settings()
+    try:
+        header_part, payload_part, signature_part = token.split(".", 2)
+        signing_input = f"{header_part}.{payload_part}"
+        if not hmac.compare_digest(_sign_jwt(signing_input), signature_part):
+            return None
+
+        header = json.loads(_b64url_decode(header_part))
+        payload = json.loads(_b64url_decode(payload_part))
+    except (Base64DecodeError, ValueError, json.JSONDecodeError, UnicodeDecodeError):
+        return None
+
+    if not isinstance(header, dict) or not isinstance(payload, dict):
+        return None
+
+    if header.get("alg") != settings.jwt_algorithm or header.get("typ") != "JWT":
+        return None
+    if payload.get("iss") != settings.jwt_issuer:
+        return None
+
+    exp = payload.get("exp")
+    if not isinstance(exp, int) or exp <= int(datetime.now(timezone.utc).timestamp()):
+        return None
+
+    return payload
+
+
+def create_access_token(user: User) -> tuple[str, datetime, str]:
+    settings = get_settings()
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(hours=settings.jwt_ttl_hours)
+    jti = secrets.token_urlsafe(32)
+    header = {"alg": settings.jwt_algorithm, "typ": "JWT"}
+    payload = {
+        "iss": settings.jwt_issuer,
+        "sub": user.id,
+        "username": user.username,
+        "access": user.access,
+        "iat": int(now.timestamp()),
+        "exp": int(expires_at.timestamp()),
+        "jti": jti,
+    }
+    signing_input = f"{_json_b64url(header)}.{_json_b64url(payload)}"
+    token = f"{signing_input}.{_sign_jwt(signing_input)}"
+
+    ttl = max(int((expires_at - now).total_seconds()), 1)
+    get_jwt_redis().setex(_jwt_key(jti), ttl, user.id)
+    return token, expires_at, jti
+
+
+def get_user_by_jwt_token(db: Session, token: str | None) -> User | None:
     if not token:
         return None
 
-    session = db.scalar(
-        select(UserSession)
-        .where(UserSession.token_hash == hash_session_token(token))
-        .where(UserSession.expires_at > datetime.now(timezone.utc))
-    )
-    if not session or not session.user.is_active:
+    payload = _decode_jwt(token)
+    if not payload:
         return None
-    return session.user
+
+    user_id = payload.get("sub")
+    jti = payload.get("jti")
+    if not isinstance(user_id, str) or not isinstance(jti, str):
+        return None
+
+    cached_user_id = get_jwt_redis().get(_jwt_key(jti))
+    if cached_user_id != user_id:
+        return None
+
+    user = db.get(User, user_id)
+    if not user or not user.is_active:
+        return None
+    return user
 
 
-def delete_session(db: Session, token: str | None) -> None:
+def revoke_jwt_token(token: str | None) -> bool:
     if not token:
-        return
+        return False
 
-    session = db.scalar(select(UserSession).where(UserSession.token_hash == hash_session_token(token)))
-    if session:
-        db.delete(session)
-        db.commit()
+    payload = _decode_jwt(token)
+    jti = payload.get("jti") if payload else None
+    if not isinstance(jti, str):
+        return False
+    return bool(get_jwt_redis().delete(_jwt_key(jti)))
+
+
+def revoke_jwt_id(jti: str) -> bool:
+    return bool(get_jwt_redis().delete(_jwt_key(jti)))
 
 
 async def verify_turnstile_token(token: str | None, remote_ip: str | None) -> bool:
