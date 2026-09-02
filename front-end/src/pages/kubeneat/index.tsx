@@ -1,4 +1,5 @@
 import {
+  ClearOutlined,
   CloudUploadOutlined,
   CopyOutlined,
   DownloadOutlined,
@@ -75,6 +76,7 @@ const KubeneatPage = () => {
 
   const hasResult = !!task?.result?.result_content;
   const busy = uploading || (!!task && !isDone(task.status));
+  const canClear = !!task || !!manualYaml.trim() || !!selectedFile;
   const originalYaml = mode === 'manual'
     ? manualYaml
     : selectedYaml || task?.result?.original_content || '';
@@ -155,6 +157,7 @@ const KubeneatPage = () => {
 
   const clearWorkspaceState = () => {
     stopPolling();
+    setUploading(false);
     setTask(undefined);
     notifiedTaskKeyRef.current = undefined;
     setSelectedFile(undefined);
@@ -162,6 +165,11 @@ const KubeneatPage = () => {
     setSelectedYaml('');
     setManualFilename('manual-input.yaml');
     setManualYaml('');
+  };
+
+  const handleClearWorkspace = () => {
+    clearWorkspaceState();
+    message.success('已清空，可以重新粘贴或上传 YAML。');
   };
 
   const handleModeChange = (nextMode: SubmitMode) => {
@@ -294,6 +302,9 @@ const KubeneatPage = () => {
           <Button icon={<CopyOutlined />} onClick={handleCopyResult}>
             Copy result
           </Button>
+          <Button icon={<ClearOutlined />} onClick={handleClearWorkspace} disabled={uploading}>
+            清空
+          </Button>
         </Space>
       </div>
       <div className="monaco-shell">
@@ -343,15 +354,25 @@ const KubeneatPage = () => {
                   <p className="ant-upload-hint">Selecting a file does not submit it. Use the button below to start.</p>
                 </Dragger>
 
-                <Button
-                  type="primary"
-                  size="large"
-                  onClick={handleSubmitFile}
-                  loading={uploading && mode === 'upload'}
-                  disabled={busy || !selectedFile}
-                >
-                  Submit file
-                </Button>
+                <Space size={12} wrap>
+                  <Button
+                    type="primary"
+                    size="large"
+                    onClick={handleSubmitFile}
+                    loading={uploading && mode === 'upload'}
+                    disabled={busy || !selectedFile}
+                  >
+                    Submit file
+                  </Button>
+                  <Button
+                    size="large"
+                    icon={<ClearOutlined />}
+                    onClick={handleClearWorkspace}
+                    disabled={uploading || !canClear}
+                  >
+                    清空
+                  </Button>
+                </Space>
 
                 {hasResult && (
                   <div className="kubeneat-compare-grid">{renderResultCompare('Original YAML')}</div>
@@ -390,15 +411,25 @@ const KubeneatPage = () => {
                     </div>
                   )}
                 </div>
-                <Button
-                  type="primary"
-                  size="large"
-                  onClick={handleSubmitManualYaml}
-                  loading={uploading && mode === 'manual'}
-                  disabled={busy || !manualYaml.trim()}
-                >
-                  Submit YAML
-                </Button>
+                <Space size={12} wrap>
+                  <Button
+                    type="primary"
+                    size="large"
+                    onClick={handleSubmitManualYaml}
+                    loading={uploading && mode === 'manual'}
+                    disabled={busy || !manualYaml.trim()}
+                  >
+                    Submit YAML
+                  </Button>
+                  <Button
+                    size="large"
+                    icon={<ClearOutlined />}
+                    onClick={handleClearWorkspace}
+                    disabled={uploading || !canClear}
+                  >
+                    清空
+                  </Button>
+                </Space>
               </Space>
             )}
 
