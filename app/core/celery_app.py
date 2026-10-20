@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from celery import Celery
 
 from app.core.config import get_settings
@@ -18,4 +20,10 @@ celery_app.conf.update(
     task_store_eager_result=True,
     result_extended=True,
     timezone="Asia/Shanghai",
+    beat_schedule={
+        "cleanup-runtime-files-every-24-hours": {
+            "task": "app.workers.tasks.cleanup_runtime_files",
+            "schedule": timedelta(hours=24),
+        },
+    },
 )
